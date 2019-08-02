@@ -1,0 +1,2 @@
+# speechKit
+Scripts for speechKit
