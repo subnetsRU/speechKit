@@ -1,2 +1,2 @@
 # speechKit
-Scripts for speechKit
+Scripts for speechKits
