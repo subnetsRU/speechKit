@@ -4,3 +4,7 @@ Speech-to-Text streaming example for NodeJS
 Author: Nikolaev Dmitry <dn@mega-net.ru>
 
 More examples can be found [here](https://github.com/TinkoffCreditSystems/tinkoff-speech-api-examples)
+
+Usage
+----
+/path/to/nodejs tinkoff.js /full/path/to/audio.pcm
