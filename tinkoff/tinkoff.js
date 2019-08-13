@@ -98,9 +98,13 @@ function createSttClient(){
 		encoding: FORMAT_PCM,
 		sample_rate_hertz: 16000,
 		language_code: "ru-RU",
-		max_alternatives: 4,
+		max_alternatives: 3,
 		num_channels: 1,
-	    }
+	    },
+            interim_results_config:{
+                enable_interim_results: true,
+                interval: 2,
+            },
 	}
     };
 
@@ -119,12 +123,19 @@ function createSttClient(){
     var client = new sttProto.SpeechToText(config.host + ':' + config.port, sslCreds);
     var sttService = client.StreamingRecognize(metadata);
 
-    sttService.on('error', function (error) {
-	console.error(sprintf("tinkoff error: code %s [%s]\n%s",error.code,error.message,error.stack));
-	sttService.emit('shutdown');
-    });
     sttService.on('end', function() {
 	console.log("sttService event: end");
+    });
+    sttService.on('metadata', function(metadata){
+	//https://grpc.github.io/grpc/node/grpc.Metadata.html
+        console.info(sprintf("sttService metadata response:\ndate: %s\nserver: %s\nx-request-id: %s",metadata.get('date'),metadata.get('server'),metadata.get('x-request-id')));
+    });
+    sttService.on('status', function(status){
+        // https://grpc.github.io/grpc/core/md_doc_statuscodes.html https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
+        console.log(sprintf('sttService got status message [%j]',status));
+    });
+    sttService.on('error', function (error){
+	console.error(sprintf("sttService error: code %s [%s]\n%s",error.code,error.message,error.stack));
 	sttService.emit('shutdown');
     });
     sttService.on('shutdown',function(calledFrom){
@@ -136,7 +147,6 @@ function createSttClient(){
 	    console.log('sttService end');
 	    sttService.end();
 	}
-	client.close();
 	process.exit();
     });
 
