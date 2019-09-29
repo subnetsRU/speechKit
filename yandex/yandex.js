@@ -17,7 +17,7 @@ var config = {
     IAM_token: '____PUT_YOUR_IAM_TOKEN_HERE___',
     model: 'general',
     language_code: 'ru-RU',
-    audio_encoding: 'LINEAR16',
+    audio_encoding: 'LINEAR16_PCM',
     sample_rate_hertz: 16000,
     profanity_filter: false,
     partial_results: true
@@ -43,42 +43,16 @@ sttService = false;
 
 const argv = process.argv.slice(1);
 if (argv.length != 2){
-    console.error(sprintf('Usage: /path/to/nodejs %s /full/path/to/audio.raw',argv[0]));
+    console.error('Usage:');
+    console.error(sprintf('# /path/to/nodejs %s /path/to/audio.raw',argv[0]));
+    console.error('\tOR');
+    console.error(sprintf('# /path/to/nodejs %s /path/to/audio.wav',argv[0]));
     process.exit( 1 );
 }else{
     FILE_TO_OPEN = argv[1];
 }
 
-function yandex_connect(){
-    sttService = createSttClient();
-    console.log("sttService connected");
-    
-    yandex = Writable({emitClose:true,autoDestroy:true});
-    yandex._write = function (chunk, enc, next){
-	if (!sttService.write({audio_content: chunk}, next)){
-	    console.error("sttService.write returned false");
-	}
-    };
-    yandex.on('finish', () => {
-	console.info("yandex finished");
-    });
-    yandex.on('close', () => {
-	console.info("yandex closed");
-    });
-    
-    sttService.on('data', function (response) {
-	if (response.chunks.length > 0) {
-	    chunk = response.chunks[0].alternatives[0].text;
-	    final = ( (response.chunks[0].final !== undefined) ? response.chunks[0].final : false );
-	    console.log('Text: ' + chunk);
-	    console.log('Is final: ' + final);
-	}
-	console.log("=== RESPONSE END ===")
-    });
- return true;
-}
-
-function createSttClient(){
+function createSttClient(next){
     var grpc = require('grpc');
     var protoLoader = require('@grpc/proto-loader');
     var packageDefinition = protoLoader.loadSync(
@@ -121,6 +95,16 @@ function createSttClient(){
 	console.log("sttService event: end");
 	sttService.emit('shutdown');
     });
+    sttService.on('data', function (response) {
+	console.log("\n=== RESPONSE START ===")
+	if (response.chunks.length > 0) {
+	    chunk = response.chunks[0].alternatives[0].text;
+	    final = ( (response.chunks[0].final !== undefined) ? response.chunks[0].final : false );
+	    console.log('Text: ' + chunk);
+	    console.log('Is final: ' + final);
+	}
+	console.log("=== RESPONSE END ===")
+    });
     sttService.on('shutdown',function(calledFrom){
 	console.log('sttService emit event shutdown');
 	if (typeof yandex.end == 'function'){
@@ -136,11 +120,45 @@ function createSttClient(){
 
     sttService.write(sttServiceConfig);
 
-    return sttService;
+    var deadline = new Date();
+    deadline.setSeconds(deadline.getSeconds() + 3);
+    grpc.waitForClientReady(client, deadline, function(error){
+	if (typeof error === 'undefined'){
+	    console.log("sttService connected");
+	    if (typeof next == "function"){
+		next(sttService);
+	    }else{
+		console.error('Error: Callback is not a function');
+		process.exit(1);
+	    }
+	}else{
+	    console.log('Error: sttService not connected, connection timedout');
+	    process.exit(1);
+	}
+    });
 }
 
-if (yandex_connect()){
-    let reader = fs.createReadStream(FILE_TO_OPEN,{highWaterMark:320}).pause();
+createSttClient(function(sttService){
+    yandex = Writable({emitClose:true,autoDestroy:true});
+    yandex._write = function (chunk, enc, next){
+	if (!sttService.write({audio_content: chunk}, next)){
+	    console.error("sttService.write returned false");
+	}
+    };
+    yandex.on('finish', () => {
+	console.info("yandex finished");
+    });
+    yandex.on('close', () => {
+	console.info("yandex closed");
+    });
+    
+    var startFrom = 0;
+    if ((/\.wav$/.test(FILE_TO_OPEN))){
+	startFrom = 44;
+    }
+    
+    console.log('Read file',FILE_TO_OPEN);
+    let reader = fs.createReadStream(FILE_TO_OPEN,{flags: 'r',autoClose: true, start: startFrom, highWaterMark: 320}).pause();
     reader.on('error', function () {
 	console.error('reader return error');
 	sttService.emit('shutdown');
@@ -152,9 +170,9 @@ if (yandex_connect()){
 	yandex.write(chunk);
     });
     reader.on('end', function(){
-	console.log("\nReader ended, close connection and exit");
+	console.log("\nAudio file ended, close connection and exit");
 	sttService.emit('shutdown');
 	console.log('Done');
 	setTimeout(function(){process.exit( 0 );},15000);	//Just wait for more results before exit
     });
-}
+});

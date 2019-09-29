@@ -9,4 +9,6 @@ More examples can be found [here](https://github.com/yandex-cloud/cloudapi/)
 
 Usage
 ----
-/path/to/nodejs yandex.js /full/path/to/audio.raw
+# /path/to/nodejs yandex.js /full/path/to/audio.raw
+    OR
+# /path/to/nodejs yandex.js /full/path/to/audio.wav

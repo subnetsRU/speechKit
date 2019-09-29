@@ -38,47 +38,16 @@ sttService = false;
 
 const argv = process.argv.slice(1);
 if (argv.length != 2){
-    console.error(sprintf('Usage: /path/to/nodejs %s /full/path/to/audio.raw',argv[0]));
+    console.error('Usage:');
+    console.error(sprintf('# /path/to/nodejs %s /path/to/audio.raw',argv[0]));
+    console.error('\tOR');
+    console.error(sprintf('# /path/to/nodejs %s /path/to/audio.wav',argv[0]));
     process.exit( 1 );
 }else{
     FILE_TO_OPEN = argv[1];
 }
 
-function tinkoff_connect(){
-    sttService = createSttClient();
-    console.log("sttService connected");
-    
-    tinkoff = Writable({emitClose:true,autoDestroy:true});
-    tinkoff._write = function (chunk, enc, next){
-	if (!sttService.write({audio_content: chunk}, next)){
-	    console.error("sttService.write returned false");
-	}
-    };
-    tinkoff.on('finish', () => {
-	console.info("tinkoff finished");
-    });
-    tinkoff.on('close', () => {
-	console.info("tinkoff closed");
-    });
-    
-    sttService.on('data', function (response) {
-	for (let item of response.results){
-	    console.log("Channel", item.recognition_result.channel);
-	    console.log("Phrase start", item.recognition_result.start_time);
-	    console.log("Phrase end", item.recognition_result.end_time);
-	    console.log("Is final", item.is_final);
-	    for (let alternative of item.recognition_result.alternatives){
-		console.log("Transcription", alternative.transcript);
-		console.log("Confidence", alternative.confidence);
-		console.log("------------------")
-	    }
-	}
-	console.log("=== RESPONSE END ===")
-    });
- return true;
-}
-
-function createSttClient(){
+function createSttClient(next){
     const FORMAT_PCM = 'LINEAR16';
     var grpc = require('grpc');
     var protoLoader = require('@grpc/proto-loader');
@@ -128,15 +97,30 @@ function createSttClient(){
     });
     sttService.on('metadata', function(metadata){
 	//https://grpc.github.io/grpc/node/grpc.Metadata.html
-        console.info(sprintf("sttService metadata response:\ndate: %s\nserver: %s\nx-request-id: %s",metadata.get('date'),metadata.get('server'),metadata.get('x-request-id')));
+	console.log(sprintf("sttService metadata response: %j",metadata));
     });
     sttService.on('status', function(status){
         // https://grpc.github.io/grpc/core/md_doc_statuscodes.html https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
-        console.log(sprintf('sttService got status message [%j]',status));
+        console.log(sprintf('sttService status response: [%j]',status));
     });
     sttService.on('error', function (error){
 	console.error(sprintf("sttService error: code %s [%s]\n%s",error.code,error.message,error.stack));
 	sttService.emit('shutdown');
+    });
+    sttService.on('data', function (response) {
+	console.log("\n=== RESPONSE START ===")
+	for (let item of response.results){
+	    console.log("Channel", item.recognition_result.channel);
+	    console.log("Phrase start", item.recognition_result.start_time);
+	    console.log("Phrase end", item.recognition_result.end_time);
+	    console.log("Is final", item.is_final);
+	    for (let alternative of item.recognition_result.alternatives){
+		console.log("Transcription", alternative.transcript);
+		console.log("Confidence", alternative.confidence);
+		console.log("------------------")
+	    }
+	}
+	console.log("=== RESPONSE END ===")
     });
     sttService.on('shutdown',function(calledFrom){
 	console.log('sttService emit event shutdown');
@@ -152,8 +136,22 @@ function createSttClient(){
 
     sttService.write(sttServiceConfig);
 
-    return sttService;
-}
+    var deadline = new Date();
+    deadline.setSeconds(deadline.getSeconds() + 3);
+    grpc.waitForClientReady(client, deadline, function(error){
+	if (typeof error === 'undefined'){
+	    console.log("sttService connected");
+	    if (typeof next == "function"){
+		next(sttService);
+	    }else{
+		console.error('Error: Callback is not a function');
+		process.exit(1);
+	    }
+	}else{
+	    console.log('Error: sttService not connected, connection timedout');
+	    process.exit(1);
+	}
+    });}
 
 function generate_jwt(api_key, secret_key, payload){
     expiration_time = 600;
@@ -194,8 +192,27 @@ function pad_base64(base64_str){
  return base64_str;
 }
 
-if (tinkoff_connect()){
-    let reader = fs.createReadStream(FILE_TO_OPEN,{highWaterMark:320}).pause();
+createSttClient(function(sttService){
+    tinkoff = Writable({emitClose:true,autoDestroy:true});
+    tinkoff._write = function (chunk, enc, next){
+	if (!sttService.write({audio_content: chunk}, next)){
+	    console.error("sttService.write returned false");
+	}
+    };
+    tinkoff.on('finish', () => {
+	console.info("tinkoff finished");
+    });
+    tinkoff.on('close', () => {
+	console.info("tinkoff closed");
+    });
+
+    var startFrom = 0;
+    if ((/\.wav$/.test(FILE_TO_OPEN))){
+	startFrom = 44;
+    }
+    
+    console.log('Read file',FILE_TO_OPEN);
+    let reader = fs.createReadStream(FILE_TO_OPEN,{flags: 'r',autoClose: true, start: startFrom, highWaterMark: 320}).pause();
     reader.on('error', function () {
 	console.error('reader return error');
 	sttService.emit('shutdown');
@@ -207,9 +224,9 @@ if (tinkoff_connect()){
 	tinkoff.write(chunk);
     });
     reader.on('end', function(){
-	console.log("\nReader ended, close connection and exit");
+	console.log("\nAudio file ended, close connection and exit");
 	sttService.emit('shutdown');
 	console.log('Done');
 	process.exit( 0 );
     });
-}
+});

@@ -7,4 +7,6 @@ More examples can be found [here](https://github.com/TinkoffCreditSystems/tinkof
 
 Usage
 ----
-/path/to/nodejs tinkoff.js /full/path/to/audio.raw
+# /path/to/nodejs tinkoff.js /path/to/audio.raw
+    OR
+# /path/to/nodejs tinkoff.js /path/to/audio.wav
