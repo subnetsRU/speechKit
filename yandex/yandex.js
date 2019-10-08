@@ -26,6 +26,7 @@ var config = {
 var fs = require('fs');
 var sprintf = require("sprintf-js").sprintf;
 var Writable = require('stream').Writable;
+const os = require('os');
 
 const PROTO_PATH = [__dirname + '/proto/stt_service.proto',__dirname + '/proto/status.proto'];
 
@@ -64,9 +65,12 @@ function createSttClient(next){
             defaults: true,
             oneofs: true
         });
+    var requestID = parseInt(new Date().getTime()/1000) + '-' + os.hostname();
 
     metadata = new grpc.Metadata();
     metadata.set('authorization', 'Bearer ' + config.IAM_token);
+    metadata.set('X-Client-Request-ID',requestID);
+    console.info(sprintf('Set sttService X-Client-Request-ID [%s]',requestID));
 
     var sttProto = grpc.loadPackageDefinition(packageDefinition).yandex.cloud.ai.stt.v2;
 
@@ -105,17 +109,20 @@ function createSttClient(next){
 	}
 	console.log("=== RESPONSE END ===")
     });
-    sttService.on('shutdown',function(calledFrom){
+    sttService.once('shutdown',function(calledFrom){
 	console.log('sttService emit event shutdown');
 	if (typeof yandex.end == 'function'){
-		yandex.end();
+	    yandex.end();
 	}
-	if (sttService.end == 'function'){
-	    console.log('sttService end');
-	    sttService.end();
+	if (typeof sttService.end == 'function'){
+	    sttService.end(function(){
+		console.log('sttService ended');
+		client.close();
+		process.exit(0);
+	    });
+	}else{
+	    process.exit(0);
 	}
-	client.close();
-	process.exit();
     });
 
     sttService.write(sttServiceConfig);
@@ -170,9 +177,13 @@ createSttClient(function(sttService){
 	yandex.write(chunk);
     });
     reader.on('end', function(){
-	console.log("\nAudio file ended, close connection and exit");
-	sttService.emit('shutdown');
-	console.log('Done');
-	setTimeout(function(){process.exit( 0 );},15000);	//Just wait for more results before exit
+	console.log(sprintf("\n******* Audio file [%s] ended *******",FILE_TO_OPEN));
+	setInterval(function(){
+	    console.log('\n******* Just waiting for more recognition results before exit *******\n');
+	},1000);
+	setTimeout(function(){
+	    console.log('Going to exit');
+	    sttService.emit('shutdown');
+	},15000);
     });
 });

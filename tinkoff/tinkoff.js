@@ -21,7 +21,7 @@ var fs = require('fs');
 var sprintf = require("sprintf-js").sprintf;
 var Writable = require('stream').Writable;
 var crypto = require('crypto');
-
+const os = require('os');
 const PROTO_PATH = [__dirname + '/proto/stt.proto'];
 
 PROTO_PATH.forEach(function(proto, index, array){
@@ -76,6 +76,7 @@ function createSttClient(next){
             },
 	}
     };
+    var requestID = parseInt(new Date().getTime()/1000) + '-' + os.hostname();
 
     auth_payload = {
        "iss": "test_issuer",
@@ -86,6 +87,8 @@ function createSttClient(next){
     var auth = generate_jwt(config.keys.api,config.keys.secret,auth_payload);
     metadata = new grpc.Metadata();
     metadata.set('authorization', 'Bearer ' + auth);
+    metadata.set('X-Client-Request-ID',requestID);
+    console.info(sprintf('Set sttService X-Client-Request-ID [%s]',requestID));
 
     var sttProto = grpc.loadPackageDefinition(packageDefinition).tinkoff.cloud.stt.v1;
     var sslCreds = grpc.credentials.createSsl();
@@ -122,16 +125,20 @@ function createSttClient(next){
 	}
 	console.log("=== RESPONSE END ===")
     });
-    sttService.on('shutdown',function(calledFrom){
+    sttService.once('shutdown',function(calledFrom){
 	console.log('sttService emit event shutdown');
 	if (typeof tinkoff.end == 'function'){
-		tinkoff.end();
+	    tinkoff.end();
 	}
-	if (sttService.end == 'function'){
-	    console.log('sttService end');
-	    sttService.end();
+	if (typeof sttService.end == 'function'){
+	    sttService.end(function(){
+		console.log('sttService ended');
+		//client.close();
+		process.exit(0);
+	    });
+	}else{
+	    process.exit(0);
 	}
-	process.exit();
     });
 
     sttService.write(sttServiceConfig);
@@ -213,8 +220,8 @@ createSttClient(function(sttService){
     
     console.log('Read file',FILE_TO_OPEN);
     let reader = fs.createReadStream(FILE_TO_OPEN,{flags: 'r',autoClose: true, start: startFrom, highWaterMark: 320}).pause();
-    reader.on('error', function () {
-	console.error('reader return error');
+    reader.on('error', function (e) {
+	console.error('reader return error',e);
 	sttService.emit('shutdown');
     });
     reader.on('readable', function () {
@@ -224,9 +231,13 @@ createSttClient(function(sttService){
 	tinkoff.write(chunk);
     });
     reader.on('end', function(){
-	console.log("\nAudio file ended, close connection and exit");
-	sttService.emit('shutdown');
-	console.log('Done');
-	process.exit( 0 );
+	console.log(sprintf("\n******* Audio file [%s] ended *******",FILE_TO_OPEN));
+	setInterval(function(){
+	    console.log('\n******* Just waiting for more recognition results before exit *******\n');
+	},1000);
+	setTimeout(function(){
+	    console.log('Going to exit');
+	    sttService.emit('shutdown');
+	},15000);
     });
 });
