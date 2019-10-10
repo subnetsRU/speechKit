@@ -1,4 +1,3 @@
-#!/usr/local/bin/node
 /*
     Tinkoff speechkit: https://voicekit.tinkoff.ru/
 
@@ -30,6 +29,7 @@ PROTO_PATH.forEach(function(proto, index, array){
     }
     catch(e){
 	console.error(sprintf('[%s] file not found',proto));
+	process.exit( 1 );
     }
 });
 

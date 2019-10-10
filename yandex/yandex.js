@@ -1,4 +1,3 @@
-#!/usr/local/bin/node
 /*
     Yandex speechkit: https://cloud.yandex.ru/services/speechkit
 
@@ -36,6 +35,7 @@ PROTO_PATH.forEach(function(proto, index, array){
     }
     catch(e){
 	console.error(sprintf('[%s] file not found',proto));
+	process.exit( 1 );
     }
 });
 

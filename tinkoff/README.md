@@ -1,5 +1,5 @@
 # [Tinkoff speechkit](https://voicekit.tinkoff.ru/)
-Speech-to-Text streaming example for NodeJS
+Speech-To-Text (STT) and Text-To-Speech (TTS) examples for NodeJS
 
 Author: Nikolaev Dmitry <dn@mega-net.ru>
 
@@ -7,6 +7,10 @@ More examples can be found [here](https://github.com/TinkoffCreditSystems/tinkof
 
 Usage
 ----
-# /path/to/nodejs tinkoff.js /path/to/audio.raw
-    OR
-# /path/to/nodejs tinkoff.js /path/to/audio.wav
+#### STT
+
+* /path/to/nodejs tinkoff_stt.js /path/to/audio.raw
+* /path/to/nodejs tinkoff_stt.js /path/to/audio.wav
+
+#### TTS
+ * /path/to/nodejs tinkoff_tts.js "это тест синтеза речи"
