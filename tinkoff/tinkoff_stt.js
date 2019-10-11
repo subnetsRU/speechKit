@@ -158,30 +158,75 @@ function createSttClient(next){
 	    console.log('Error: sttService not connected, connection timedout');
 	    process.exit(1);
 	}
-    });}
+    });
+}
 
-function generate_jwt(api_key, secret_key, payload){
-    expiration_time = 600;
-    header = {
-        "alg": "HS256",
-        "typ": "JWT",
-        "kid": api_key
-    }
+var base64 = function(){
+    //based on https://www.npmjs.com/package/urlsafe-base64
+/**
+ * .encode
+ *
+ * return an encoded Buffer as URL Safe Base64
+ *
+ * Note: This function encodes to the RFC 4648 Spec where '+' is encoded
+ *       as '-' and '/' is encoded as '_'. The padding character '=' is
+ *       removed.
+ *
+ * @param {Buffer} buffer
+ * @return {String}
+ * @api public
+ */
+    var _encode = function _encode(buffer) {
+	return buffer.toString('base64')
+	    .replace(/\+/g, '-') // Convert '+' to '-'
+	    .replace(/\//g, '_') // Convert '/' to '_'
+	    .replace(/=+$/, ''); // Remove ending '='
+    };
 
-    payload['exp'] = parseInt(new Date().getTime()/1000) + expiration_time;
-    payload_bytes = JSON.stringify(payload);
-    header_bytes = JSON.stringify(header);
+/**
+ * .decode
+ *
+ * return an decoded URL Safe Base64 as Buffer
+ *
+ * @param {String}
+ * @return {Buffer}
+ * @api public
+ */
+    var _decode = function _decode(base64) {
+	// Add removed at end '='
+	base64 += Array(5 - base64.length % 4).join('=');
+	base64 = base64
+	    .replace(/\-/g, '+') // Convert '-' to '+'
+	    .replace(/\_/g, '/'); // Convert '_' to '/'
+	return new Buffer.from(base64, 'base64');
+    };
+
+/**
+ * .validate
+ *
+ * Validates a string if it is URL Safe Base64 encoded.
+ *
+ * @param {String}
+ * @return {Boolean}
+ * @api public
+ */
+
+    var _validate = function _validate(base64) {
+	return /^[A-Za-z0-9\-_]+$/.test(base64);
+    };
     
-    data = (Buffer.from(header_bytes).toString('base64') + '.' + Buffer.from(payload_bytes).toString('base64'));
-    b_secret_key = pad_base64(secret_key);
-    decode_secret_key = new Buffer.from(pad_base64(secret_key), 'base64').toString('utf8');
-
-    hmac = crypto.createHmac('sha256',decode_secret_key).update(data,'utf8').digest();
-    signature = Buffer.from( hmac ).toString('base64');
-
-    jwt = data + '.' + signature;
-
- return jwt;
+    return {
+	encode: function encode(text){
+	    var buffer = Buffer.from(text);
+	    return _encode(buffer);
+	},
+	decode: function decode(base64){
+	    return _decode(base64).toString('utf8');
+	},
+	validate: function validate(base64){
+	    return _validate(base64);
+	}
+    };
 }
 
 function pad_base64(base64_str){
@@ -197,6 +242,30 @@ function pad_base64(base64_str){
     }
     
  return base64_str;
+}
+
+function generate_jwt(api_key, secret_key, payload){
+    var b64 = base64();
+    var expiration_time = 600;
+    var header = {
+        "alg": "HS256",
+        "typ": "JWT",
+        "kid": api_key
+    }
+
+    payload['exp'] = parseInt(new Date().getTime()/1000) + expiration_time;
+    payload_bytes = JSON.stringify(payload);
+    header_bytes = JSON.stringify(header);
+    
+    data = (b64.encode(header_bytes) + '.' + b64.encode(payload_bytes));
+    decode_secret_key = b64.decode(pad_base64(secret_key));
+
+    hmac = crypto.createHmac('sha256',decode_secret_key).update(data,'utf8').digest();
+    signature = b64.encode(hmac);
+
+    jwt = data + '.' + signature;
+
+ return jwt;
 }
 
 createSttClient(function(sttService){

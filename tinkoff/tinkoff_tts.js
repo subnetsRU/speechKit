@@ -41,6 +41,74 @@ if (argv.length != 1){
     resultFile = fs.createWriteStream(resultFilePath, {autoClose: true, encoding: 'utf8', flags : 'w'});
 }
 
+var base64 = function(){
+    //based on https://www.npmjs.com/package/urlsafe-base64
+/**
+ * .encode
+ *
+ * return an encoded Buffer as URL Safe Base64
+ *
+ * Note: This function encodes to the RFC 4648 Spec where '+' is encoded
+ *       as '-' and '/' is encoded as '_'. The padding character '=' is
+ *       removed.
+ *
+ * @param {Buffer} buffer
+ * @return {String}
+ * @api public
+ */
+    var _encode = function _encode(buffer) {
+	return buffer.toString('base64')
+	    .replace(/\+/g, '-') // Convert '+' to '-'
+	    .replace(/\//g, '_') // Convert '/' to '_'
+	    .replace(/=+$/, ''); // Remove ending '='
+    };
+
+/**
+ * .decode
+ *
+ * return an decoded URL Safe Base64 as Buffer
+ *
+ * @param {String}
+ * @return {Buffer}
+ * @api public
+ */
+    var _decode = function _decode(base64) {
+	// Add removed at end '='
+	base64 += Array(5 - base64.length % 4).join('=');
+	base64 = base64
+	    .replace(/\-/g, '+') // Convert '-' to '+'
+	    .replace(/\_/g, '/'); // Convert '_' to '/'
+	return new Buffer.from(base64, 'base64');
+    };
+
+/**
+ * .validate
+ *
+ * Validates a string if it is URL Safe Base64 encoded.
+ *
+ * @param {String}
+ * @return {Boolean}
+ * @api public
+ */
+
+    var _validate = function _validate(base64) {
+	return /^[A-Za-z0-9\-_]+$/.test(base64);
+    };
+    
+    return {
+	encode: function encode(text){
+	    var buffer = Buffer.from(text);
+	    return _encode(buffer);
+	},
+	decode: function decode(base64){
+	    return _decode(base64).toString('utf8');
+	},
+	validate: function validate(base64){
+	    return _validate(base64);
+	}
+    };
+}
+
 function pad_base64(base64_str){
     len = base64_str.length;
     num_equals_signs = 4 - len % 4;
@@ -57,8 +125,9 @@ function pad_base64(base64_str){
 }
 
 function generate_jwt(api_key, secret_key, payload){
-    expiration_time = 600;
-    header = {
+    var b64 = base64();
+    var expiration_time = 600;
+    var header = {
         "alg": "HS256",
         "typ": "JWT",
         "kid": api_key
@@ -68,13 +137,11 @@ function generate_jwt(api_key, secret_key, payload){
     payload_bytes = JSON.stringify(payload);
     header_bytes = JSON.stringify(header);
     
-    data = (Buffer.from(header_bytes).toString('base64') + '.' + Buffer.from(payload_bytes).toString('base64'));
-    
-    b_secret_key = pad_base64(secret_key);
-    decode_secret_key = new Buffer.from(pad_base64(secret_key), 'base64').toString('utf8');
+    data = (b64.encode(header_bytes) + '.' + b64.encode(payload_bytes));
+    decode_secret_key = b64.decode(pad_base64(secret_key));
 
     hmac = crypto.createHmac('sha256',decode_secret_key).update(data,'utf8').digest();
-    signature = Buffer.from( hmac ).toString('base64');
+    signature = b64.encode(hmac);
 
     jwt = data + '.' + signature;
 
