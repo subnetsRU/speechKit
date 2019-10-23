@@ -101,7 +101,7 @@ var base64 = function(){
 	    return _encode(buffer);
 	},
 	decode: function decode(base64){
-	    return _decode(base64).toString('utf8');
+	    return _decode(base64);
 	},
 	validate: function validate(base64){
 	    return _validate(base64);
