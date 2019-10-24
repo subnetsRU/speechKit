@@ -97,6 +97,9 @@ function createSttClient(next){
 
     sttService.on('end', function() {
 	console.log("sttService event: end");
+	console.log('Close connection and exit');
+	client.close();
+	process.exit(0);
     });
     sttService.on('metadata', function(metadata){
 	//https://grpc.github.io/grpc/node/grpc.Metadata.html
@@ -132,11 +135,10 @@ function createSttClient(next){
 	}
 	if (typeof sttService.end == 'function'){
 	    sttService.end(function(){
-		console.log('sttService ended');
-		//client.close();
-		process.exit(0);
+		console.log('Send data to sttService finished');
 	    });
 	}else{
+	    console.error('Something went wrong');
 	    process.exit(0);
 	}
     });
@@ -221,7 +223,8 @@ var base64 = function(){
 	    return _encode(buffer);
 	},
 	decode: function decode(base64){
-	    return _decode(base64).toString('utf8');
+	    //return _decode(base64).toString('utf8');		//can cause "Token is invalid" error on nodejs v12.12
+	    return _decode(base64);
 	},
 	validate: function validate(base64){
 	    return _validate(base64);
@@ -259,6 +262,7 @@ function generate_jwt(api_key, secret_key, payload){
     
     data = (b64.encode(header_bytes) + '.' + b64.encode(payload_bytes));
     decode_secret_key = b64.decode(pad_base64(secret_key));
+    //console.log('decode_secret_key',decode_secret_key.toString('utf8'));
 
     hmac = crypto.createHmac('sha256',decode_secret_key).update(data,'utf8').digest();
     signature = b64.encode(hmac);
@@ -301,12 +305,6 @@ createSttClient(function(sttService){
     });
     reader.on('end', function(){
 	console.log(sprintf("\n******* Audio file [%s] ended *******",FILE_TO_OPEN));
-	setInterval(function(){
-	    console.log('\n******* Just waiting for more recognition results before exit *******\n');
-	},1000);
-	setTimeout(function(){
-	    console.log('Going to exit');
-	    sttService.emit('shutdown');
-	},15000);
+	sttService.emit('shutdown');
     });
 });

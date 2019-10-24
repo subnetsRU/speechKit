@@ -101,7 +101,8 @@ var base64 = function(){
 	    return _encode(buffer);
 	},
 	decode: function decode(base64){
-	    return _decode(base64).toString('utf8');
+	    //return _decode(base64).toString('utf8');		//can cause "Token is invalid" error on nodejs v12.12
+	    return _decode(base64);
 	},
 	validate: function validate(base64){
 	    return _validate(base64);
@@ -139,6 +140,7 @@ function generate_jwt(api_key, secret_key, payload){
     
     data = (b64.encode(header_bytes) + '.' + b64.encode(payload_bytes));
     decode_secret_key = b64.decode(pad_base64(secret_key));
+    //console.log('decode_secret_key',decode_secret_key.toString('utf8'));
 
     hmac = crypto.createHmac('sha256',decode_secret_key).update(data,'utf8').digest();
     signature = b64.encode(hmac);
