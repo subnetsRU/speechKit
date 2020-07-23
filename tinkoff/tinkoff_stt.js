@@ -97,9 +97,7 @@ function createSttClient(next){
 
     sttService.on('end', function() {
 	console.log("sttService event: end");
-	console.log('Close connection and exit');
-	client.close();
-	process.exit(0);
+	sttService.emit('shutdown');
     });
     sttService.on('metadata', function(metadata){
 	//https://grpc.github.io/grpc/node/grpc.Metadata.html
@@ -135,10 +133,11 @@ function createSttClient(next){
 	}
 	if (typeof sttService.end == 'function'){
 	    sttService.end(function(){
-		console.log('Send data to sttService finished');
+		console.log('sttService ended');
+		client.close();
+		process.exit(0);
 	    });
 	}else{
-	    console.error('Something went wrong');
 	    process.exit(0);
 	}
     });
@@ -305,6 +304,14 @@ createSttClient(function(sttService){
     });
     reader.on('end', function(){
 	console.log(sprintf("\n******* Audio file [%s] ended *******",FILE_TO_OPEN));
-	sttService.emit('shutdown');
+	setInterval(function(){
+	    console.log('\n******* Just waiting for recognition results before exit *******\n');
+	},1000);
+	setTimeout(function(){
+	    console.log('sttService.end()');
+	    sttService.end(function(){
+		sttService.end = false;
+	    });
+	},1000);
     });
 });

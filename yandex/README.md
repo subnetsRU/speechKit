@@ -10,5 +10,7 @@ More examples can be found [here](https://github.com/yandex-cloud/cloudapi/)
 Usage
 ----
 #### STT
+Audio file format: LINEAR16 (sample rate 16000) 
+
 * /path/to/nodejs yandex.js /full/path/to/audio.raw
 * /path/to/nodejs yandex.js /full/path/to/audio.wav

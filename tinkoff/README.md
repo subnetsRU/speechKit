@@ -8,6 +8,7 @@ More examples can be found [here](https://github.com/TinkoffCreditSystems/tinkof
 Usage
 ----
 #### STT
+Audio file format: LINEAR16 (sample rate 16000)
 
 * /path/to/nodejs tinkoff_stt.js /path/to/audio.raw
 * /path/to/nodejs tinkoff_stt.js /path/to/audio.wav

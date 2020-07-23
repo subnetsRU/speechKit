@@ -179,11 +179,13 @@ createSttClient(function(sttService){
     reader.on('end', function(){
 	console.log(sprintf("\n******* Audio file [%s] ended *******",FILE_TO_OPEN));
 	setInterval(function(){
-	    console.log('\n******* Just waiting for more recognition results before exit *******\n');
+	    console.log('\n******* Just waiting for recognition results before exit *******\n');
 	},1000);
 	setTimeout(function(){
-	    console.log('Going to exit');
-	    sttService.emit('shutdown');
-	},15000);
+	    console.log('sttService.end()');
+	    sttService.end(function(){
+		sttService.end = false;
+	    });
+	},1000);
     });
 });
